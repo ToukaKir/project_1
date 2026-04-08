@@ -723,7 +723,7 @@ class answer_panel(QWidget):
         self.input.setFixedSize(80*scale, 30*scale)
         self.input.setAlignment(Qt.AlignCenter)
         self.input.setValidator(QDoubleValidator())
-        self.input.setText('0.0') 
+        self.input.setText('0') 
 
         # Создаем валидатор для дробных чисел
         regex = QRegularExpression(r"^-?\d+(\.\d{0,2})?$")
