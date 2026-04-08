@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QLabel, QStackedWidget, QSlider,
     QLineEdit, QDialog, QGridLayout, 
     QStackedLayout, QFrame, QGraphicsDropShadowEffect, 
-    QStyleOptionSlider
+    QStyleOptionSlider, QMessageBox
 )
 from PySide6.QtCore import Qt, QPropertyAnimation, QSize, QEasingCurve, QTimer, QRectF, QRect
 from PySide6.QtGui import QPainter, QFontDatabase, QFont, QPixmap, QColor, QBrush, QPen, QIntValidator, QDoubleValidator
@@ -22,10 +22,11 @@ import sys
 import os
 from random import randint, random
 
-app = QApplication([])
-QFontDatabase.addApplicationFont("ProjUITest/Assets/UI_FONT.otf")
-QFontDatabase.addApplicationFont("ProjUITest/Assets/TEXT_FONT.ttf")
-QFontDatabase.addApplicationFont("ProjUITest/Assets/SegoePro-Semibold.ttf")
+def show_error_message(parent, title, text):
+    """Вызывает наше кастомное белое окно"""
+    dialog = WhiteErrorDialog(parent, title, text)
+    dialog.exec()
+
 
 # ---------------- РАЗМЕР ЭКРАНА ----------------
 def get_scale(screen_size, base_resolution=(1280, 720)):
@@ -40,7 +41,7 @@ def generate_adaptive_qss(button,
                           base_padding=(15, 30),
                           base_border_radius=20,
                           base_border_width=2,
-                          border_color="#111111",
+                          border_color="#0C0000",
                           hover_scale=1.3,
                           hover_border_multiplier=1.8,
                           enlarge_on_hover=False,
@@ -192,7 +193,7 @@ class MainMenu(QWidget):
         generate_adaptive_qss(
             self.main_btn, 
             base_border_width=1,
-            border_color="#111111",
+            border_color="#060000",
             enlarge_on_hover=True,
             thicker_border_on_hover=False)
         
@@ -272,7 +273,7 @@ class AboutPage(QWidget):
         text.setWordWrap(True)
         layout.addWidget(text)
 
-        authors = QLabel("ОБ АВТОРАХ\n\nИванов\nПетров\nСидоров")
+        authors = QLabel("ОБ АВТОРАХ\n\nПономарев\nБехтерев\nШишак")
         layout.addWidget(authors)
 
         layout.addStretch()
@@ -399,6 +400,58 @@ class HintDialog(QDialog):
     def mouseReleaseEvent(self, event):
         self.drag_pos = None
 
+# ---------------- КАСТОМНОЕ БЕЛОЕ ОКНО ОШИБКИ ----------------
+class WhiteErrorDialog(QDialog):
+    def __init__(self, parent, title, message):
+        super().__init__(parent)
+        
+        self.setWindowTitle(title)
+        self.setFixedSize(400, 200)
+        
+        # ГЛАВНЫЙ СТИЛЬ: Белый фон всего окна
+        self.setStyleSheet("""
+            QDialog {
+                background-color: white;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # Текст ошибки (Черный)
+        label = QLabel(message)
+        label.setStyleSheet("""
+            color: black;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            qproperty-alignment: AlignCenter;
+        """)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+
+        # Кнопка ОК
+        btn = QPushButton("OK")
+        btn.setFixedHeight(35)
+        btn.setStyleSheet("""
+            QPushButton {
+                background-color: white;
+                color: black;
+                border: 2px solid #333;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+            QPushButton:pressed {
+                background-color: #ddd;
+            }
+        """)
+        btn.clicked.connect(self.accept) # Закрывает окно
+        
+        layout.addWidget(btn)
 # ---------------- СЛАЙДЕР СТРОКА ----------------
 class Slider(QWidget):
     def __init__(self,
@@ -424,7 +477,7 @@ class Slider(QWidget):
         # === Слайдер ===
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setRange(self.min_value, self.max_value)
-        self.slider.setValue(randint(0, 100))  ###МОЖНО УБРАТЬ РАНДОМ, А МОЖНО ОСТАВИТЬ. ДОБАВЛЕН ДЛЯ ВАЙБА!!!
+        self.slider.setValue(0) 
         self.slider.setMinimumHeight(40*scale)
         self.slider.setFixedWidth(350*scale)
 
@@ -432,7 +485,14 @@ class Slider(QWidget):
         self.input = QLineEdit()
         self.input.setFixedSize(80*scale, 30*scale)
         self.input.setAlignment(Qt.AlignCenter)
-        self.input.setValidator(QIntValidator())
+        #self.input.setValidator(QIntValidator())
+
+        # Создаем валидатор для дробных чисел
+        double_validator = QDoubleValidator()
+        double_validator.setDecimals(2) # Разрешаем 2 знака после запятой (можно поменять)
+        double_validator.setNotation(QDoubleValidator.StandardNotation) # Чтобы не было научного вида (1e+2)
+        self.input.setValidator(double_validator)
+        
         self.input.setText(str(self.slider.value()))
 
         # === Единица измерения ===
@@ -522,9 +582,7 @@ class Slider(QWidget):
 
     def on_input_change(self):
         text = self.input.text()
-        value = int(text)
-        
-
+        value = float(text)
         value = max(self.min_value, min(value, self.max_value))
         self.slider.setValue(value)
 
@@ -563,6 +621,14 @@ class input_panel(CastomPanel):
     def __init__(self):
         super().__init__()
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.default_values = {
+            "P_пл": 5,
+            "AB": 10,
+            "OA": 24,
+            "OC": 8,
+            "P": 10.4
+        }
+
 
 
         layout = QVBoxLayout(self)
@@ -593,6 +659,7 @@ class input_panel(CastomPanel):
             border_color="#111111",
             enlarge_on_hover=True
         )
+        self.reset_btn.clicked.connect(self.reset_all_sliders)
 
         self.random_btn = QPushButton("СЛУЧАЙНЫЕ ЗН-Я")
         self.random_btn.clicked.connect(lambda: self.set_value("P_пл", 1)) # написать ф-ю рандомизации зн-й, запихнуть сюда
@@ -619,12 +686,21 @@ class input_panel(CastomPanel):
     
     #получить значение с слайдера
     def get_value(self, key):
-        return self.sliders[key].slider.value()
-        
+        try:
+            return float(self.sliders[key].input.text())
+        except ValueError:
+            return 0.0
     #изменить значение слайдера
+        #изменить значение слайдера и текста рядом
     def set_value(self, key, value):
-        self.sliders[key].slider.setValue(value)
-        #self.sliders[str(value)].input.setText(str(value))
+        if key in self.sliders:
+            slider_obj = self.sliders[key]
+            slider_obj.slider.setValue(int(value))
+            slider_obj.input.setText(str(value))
+
+    def reset_all_sliders(self):
+        for key, value in self.default_values.items():
+            self.set_value(key, value)
 
 # ---------------- ПОЛЕ ВВОДА ----------------
 class answer_panel(QWidget):
@@ -651,7 +727,7 @@ class answer_panel(QWidget):
         self.input.setFixedSize(80*scale, 30*scale)
         self.input.setAlignment(Qt.AlignCenter)
         self.input.setValidator(QDoubleValidator())
-        self.input.setText(str(round(random(), 2)))  ###УБРАТЬ РАНДОМ, ДОБАВЛЕН ДЛЯ ВАЙБА!!!
+        self.input.setText('0.0') 
 
         # === Единица измерения ===
         self.unit_label = QLabel(unit_label)
@@ -697,23 +773,22 @@ class answer_panel(QWidget):
 
 # ---------------- ПАНЕЛЬ РЕЗУЛЬТАТА ----------------
 class result_panel(CastomPanel):
-    def __init__(self):
+    def __init__(self, input_panel_ref):
         super().__init__()
-
+        self.input_panel = input_panel_ref 
         scale = get_scale(self.screen().size()) 
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
         self.values = {}
-
         values_layout = QHBoxLayout()
 
         label_dict = {"X_0": "Н", "Y_0": "H", "Y_C": "H"}
 
         for key in label_dict:
-            value_ans = answer_panel(label_dict[key], key)  # создаём
-            self.values[key] = value_ans             # сохраняем
+            value_ans = answer_panel(label_dict[key], key)
+            self.values[key] = value_ans             
             values_layout.addWidget(value_ans)
             values_layout.setSpacing(-5)
 
@@ -723,49 +798,80 @@ class result_panel(CastomPanel):
         btn_row = QHBoxLayout()
 
         self.reset_btn = QPushButton("СБРОСИТЬ")
-        self.reset_btn.clicked.connect(lambda: self.set_value_ans('X_0', 0)) # ну почти, только для троих сделать, желательно отдельной ф-й
+        self.reset_btn.clicked.connect(self.clear_results) 
         self.reset_btn.setObjectName("secondaryButton")
         generate_adaptive_qss(
-            self.reset_btn,
-            base_size=(200, 47),
-            base_font=15,
-            base_padding=(8, 20),
-            base_border_radius=14,
-            base_border_width=3,
-            border_color="#111111",
-            enlarge_on_hover=True
+            self.reset_btn, base_size=(200, 47), base_font=15, base_padding=(8, 20),
+            base_border_radius=14, base_border_width=3, border_color="#111111", enlarge_on_hover=True
         )
-        self.check_btn = QPushButton("ПРОВЕРИТЬ ОТВЕТ")
-        self.check_btn.clicked.connect(lambda: print(self.get_value_ans('X_0')))  # просто для примера, переделать
+        
+        self.check_btn = QPushButton("РЕШИТЬ ЗАДАЧУ")
+        self.check_btn.clicked.connect(self.calculate_physics)  
         self.check_btn.setObjectName("mainButton")
         generate_adaptive_qss(
-            self.check_btn,
-            base_size=(270, 47),
-            base_font=15,
-            base_padding=(8, 20),
-            base_border_radius=14,
-            base_border_width=3,
-            border_color="#111111",
-            enlarge_on_hover=True,
-            thicker_border_on_hover=False
+            self.check_btn, base_size=(270, 47), base_font=15, base_padding=(8, 20),
+            base_border_radius=14, base_border_width=3, border_color="#111111",
+            enlarge_on_hover=True, thicker_border_on_hover=False
         )
-
         self.check_btn.setStyleSheet(
-        self.check_btn.styleSheet() +
-        "QPushButton#mainButton { background-color: #111111; color: white; }")
+            self.check_btn.styleSheet() +
+            "QPushButton#mainButton { background-color: #111111; color: white; }"
+        )
+        
         btn_row.addWidget(self.reset_btn)
         btn_row.setSpacing(-5)
         btn_row.addWidget(self.check_btn)
-
         layout.addLayout(btn_row)
 
-    #получить значение с поля ввода
+    # --- МЕТОД СБРОСА ---
+    def clear_results(self):
+        self.set_value_ans("X_0", 0.0)
+        self.set_value_ans("Y_0", 0.0)
+        self.set_value_ans("Y_C", 0.0)
+
+    # --- МЕТОД РАСЧЕТА ---
+    def calculate_physics(self):
+        try:
+            weight = float(self.input_panel.get_value("P_пл")) 
+            force_p = float(self.input_panel.get_value("P"))   
+            side_oa = float(self.input_panel.get_value("OA"))  
+            side_ab = float(self.input_panel.get_value("AB"))  
+            side_oc = float(self.input_panel.get_value("OC"))  
+
+            if weight < 0 or force_p < 0 or side_oa < 0 or side_ab < 0 or side_oc < 0:
+                show_error_message(self, "Ошибка ввода", "Значения не могут быть отрицательными!")
+                return
+
+            if side_oa == 0 or side_ab == 0 or side_oc == 0:
+                show_error_message(self, "Ошибка геометрии", "Длины сторон не могут быть равны нулю или отрицательными!")
+                return
+
+            if side_oc >= side_ab:
+                show_error_message(self, "Геометрическое ограничение", "Сторона OC должна быть меньше стороны AB!")
+                return
+
+            hypotenuse_ob = (side_oa**2 + side_ab**2) ** 0.5
+            res_x0 = -force_p * (side_ab / hypotenuse_ob)
+            res_yc = (2 * side_oa * weight + 3 * (hypotenuse_ob / 2) * force_p) / (3 * side_oc)
+            res_y0 = force_p * (side_oa / hypotenuse_ob) + weight - res_yc
+
+            self.set_value_ans("X_0", round(res_x0, 2))
+            self.set_value_ans("Y_C", round(res_yc, 2))
+            self.set_value_ans("Y_0", round(res_y0, 2))
+
+        except Exception as e:
+            show_error_message(self, "Ошибка", f"Произошла ошибка: {str(e)}")
+
     def get_value_ans(self, key):
-        return float(self.values[key].input.text())
+        try:
+            return float(self.sliders[key].input.text())
+        except:
+            return 0.0
         
-        #изменить значение поля ввода
     def set_value_ans(self, key, value):
-        self.values[key].input.setText(str(value))
+        if key in self.values:
+            self.values[key].input.setText(str(value))
+
 
 # ---------------- ОСНОВНОЙ ЭКРАН ----------------
 class SolverPage(QWidget):
@@ -799,7 +905,13 @@ class SolverPage(QWidget):
         left_layout = QVBoxLayout(left_widget)
 
         self.input_panel = input_panel()
-        self.result_panel = result_panel()
+        self.result_panel = result_panel(self.input_panel)
+
+        self.input_panel.set_value("OC", 8)
+        self.input_panel.set_value("AB", 10)
+        self.input_panel.set_value("OA", 24)
+        self.input_panel.set_value("P_пл", 5)
+        self.input_panel.set_value("P", 10.4)
 
         left_layout.addWidget(self.input_panel)
         left_layout.addWidget(self.result_panel)
@@ -898,7 +1010,6 @@ class App(QMainWindow):
 STYLE = """
 QMainWindow {
     border-image: url("ProjUITest/Assets/bg.png") 0 0 0 0 stretch stretch; 
-    
 }
 
 QPushButton#mainButton {
@@ -908,8 +1019,7 @@ QPushButton#mainButton {
 }
 
 QPushButton#secondaryButton {
-    background-color: transparent;
-         
+    background-color: transparent;         
     font-family: Gerhaus;
     color: #111111;
 }
@@ -925,24 +1035,24 @@ QLabel#textUI {
     font-weight: bold;
     background-color: transparent;
 }
-
-QWidjet#help_window {
-    background-color: rgba(0,0,0,200);
-    border-radius: 20px;
-}
-}
 """
-
 
 # ---------------- ЗАПУСК ----------------
 if __name__ == "__main__":
+    app = QApplication([])
     
-    #app = QApplication([])
+    # Загружаем шрифты
+    QFontDatabase.addApplicationFont("ProjUITest/Assets/UI_FONT.otf")
+    QFontDatabase.addApplicationFont("ProjUITest/Assets/TEXT_FONT.ttf")
+    QFontDatabase.addApplicationFont("ProjUITest/Assets/SegoePro-Semibold.ttf")
+
+    # Применяем стиль Fusion (обязательно для корректной работы кастомных окон)
+    app.setStyle("Fusion")
+    
+    # Применяем наши стили
     app.setStyleSheet(STYLE)
 
     window = App()
     window.show()
 
     app.exec()
-    
-
