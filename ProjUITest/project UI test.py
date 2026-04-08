@@ -15,18 +15,12 @@ from PySide6.QtWidgets import (
     QStackedLayout, QFrame, QGraphicsDropShadowEffect, 
     QStyleOptionSlider, QMessageBox
 )
-from PySide6.QtCore import Qt, QPropertyAnimation, QSize, QEasingCurve, QTimer, QRectF, QRect
-from PySide6.QtGui import QPainter, QFontDatabase, QFont, QPixmap, QColor, QBrush, QPen, QIntValidator, QDoubleValidator
+from PySide6.QtCore import Qt, QPropertyAnimation, QSize, QEasingCurve, QTimer, QRectF, QRect, QRegularExpression
+from PySide6.QtGui import QPainter, QFontDatabase, QFont, QPixmap, QColor, QBrush, QPen, QIntValidator, QDoubleValidator, QRegularExpressionValidator
 
 import sys
 import os
 from random import randint, random
-
-def show_error_message(parent, title, text):
-    """Вызывает наше кастомное белое окно"""
-    dialog = WhiteErrorDialog(parent, title, text)
-    dialog.exec()
-
 
 # ---------------- РАЗМЕР ЭКРАНА ----------------
 def get_scale(screen_size, base_resolution=(1280, 720)):
@@ -400,61 +394,6 @@ class HintDialog(QDialog):
     def mouseReleaseEvent(self, event):
         self.drag_pos = None
 
-# ---------------- КАСТОМНОЕ БЕЛОЕ ОКНО ОШИБКИ (ИДЕТ НАХУЙ) ----------------
-'''
-class WhiteErrorDialog(QDialog):
-    def __init__(self, parent, title, message):
-        super().__init__(parent)
-        
-        self.setWindowTitle(title)
-        self.setFixedSize(400, 200)
-        
-        # ГЛАВНЫЙ СТИЛЬ: Белый фон всего окна
-        self.setStyleSheet("""
-            QDialog {
-                background-color: white;
-            }
-        """)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-
-        # Текст ошибки (Черный)
-        label = QLabel(message)
-        label.setStyleSheet("""
-            color: black;
-            font-size: 14px;
-            font-family: Arial, sans-serif;
-            qproperty-alignment: AlignCenter;
-        """)
-        label.setWordWrap(True)
-        layout.addWidget(label)
-
-        # Кнопка ОК
-        btn = QPushButton("OK")
-        btn.setFixedHeight(35)
-        btn.setStyleSheet("""
-            QPushButton {
-                background-color: white;
-                color: black;
-                border: 2px solid #333;
-                border-radius: 5px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-            }
-            QPushButton:pressed {
-                background-color: #ddd;
-            }
-        """)
-        btn.clicked.connect(self.accept) # Закрывает окно
-        
-        layout.addWidget(btn)
-'''
-
 # ---------------- СЛАЙДЕР СТРОКА ----------------
 class Slider(QWidget):
     def __init__(self,
@@ -463,6 +402,7 @@ class Slider(QWidget):
                  min_value = 0):
         super().__init__()
 
+        self.min_value = min_value
         self.max_value = 100
         scale = get_scale(self.screen().size()) 
 
@@ -491,10 +431,9 @@ class Slider(QWidget):
         #self.input.setValidator(QIntValidator())
 
         # Создаем валидатор для дробных чисел
-        double_validator = QDoubleValidator()
-        double_validator.setDecimals(2) # Разрешаем 2 знака после запятой (можно поменять)
-        double_validator.setNotation(QDoubleValidator.StandardNotation) # Чтобы не было научного вида (1e+2)
-        self.input.setValidator(double_validator)
+        regex = QRegularExpression(r"^\d+(\.\d{0,2})?$")
+        validator = QRegularExpressionValidator(regex)
+        self.input.setValidator(validator)
         
         self.input.setText(str(self.slider.value()))
 
@@ -580,14 +519,25 @@ class Slider(QWidget):
         main_layout.setContentsMargins(13,0,0,5)
 
     def on_slider_change(self, value):
-        if self.input.text() != str(value):
+        if "." not in self.input.text():
             self.input.setText(str(value))
+        else:
+            old = self.input.text()
+            if "." in old:
+                decimals = old.split(".")[1]
+                self.input.setText(f"{value}.{decimals}")
 
     def on_input_change(self):
-        text = self.input.text()
-        value = float(text)
+        text = self.input.text().strip()
+        if not text:
+            return
+        try:
+            value = float(text)
+        except ValueError:
+            self.input.setText(str(self.slider.value()))
+
         value = max(self.min_value, min(value, self.max_value))
-        self.slider.setValue(value)
+        self.slider.setValue(int(value))
 
 # ---------------- КАСТОМНАЯ ПАНЕЛЬ ----------------  
 class CastomPanel(QWidget):
@@ -718,7 +668,7 @@ class input_panel(CastomPanel):
             self.set_value(key, randint(1, 100))
 
         if self.get_value('OC') > self.get_value('AB'):
-            new_value = self.get_value('AB') - 5
+            new_value = self.get_value('AB') - 1
             self.set_value('OC', max(1, new_value))
 
 # ---------------- ПОЛЕ ВВОДА ----------------
@@ -747,6 +697,11 @@ class answer_panel(QWidget):
         self.input.setAlignment(Qt.AlignCenter)
         self.input.setValidator(QDoubleValidator())
         self.input.setText('0.0') 
+
+        # Создаем валидатор для дробных чисел
+        regex = QRegularExpression(r"^-?\d+(\.\d{0,2})?$")
+        validator = QRegularExpressionValidator(regex)
+        self.input.setValidator(validator)
 
         # === Единица измерения ===
         self.unit_label = QLabel(unit_label)
@@ -879,7 +834,6 @@ class result_panel(CastomPanel):
         if key in self.values:
             self.values[key].input.setText(str(value))
 
-
 # ---------------- ОСНОВНОЙ ЭКРАН ----------------
 class SolverPage(QWidget):
     def __init__(self, app):
@@ -894,12 +848,11 @@ class SolverPage(QWidget):
         # Стиль для сообщения об ошибке
         error_style = """
         QLabel#errorLabel {
-            color: #ff3333;
-            font-size: 14px;
+            color: #111111;
+            font-size: 18px;
             font-weight: bold;
-            background-color: rgba(255, 255, 255, 180);
-            border-radius: 8px;
-            padding: 5px 10px;
+            font-family: Segoe Pro;
+            background-color: transparent;
         }
         """
         self.error_label.setStyleSheet(error_style)
@@ -987,18 +940,31 @@ class SolverPage(QWidget):
             enlarge_on_hover=True
         )
 
-        # Контейнер для кнопки подсказки и сообщения об ошибке
-        hint_container = QHBoxLayout()
-        hint_container.addWidget(self.hint)
-        hint_container.addWidget(self.error_label)
-        hint_container.addStretch()
+        #self.error_label.setAlignment(Qt.AlignLeft)
+        #right.addWidget(self.error_label)
+        #right.setAlignment(Qt.AlignBottom)
 
-        btns.addLayout(hint_container)
+        self.error_label.setFixedHeight(100)
+
+        btns = QVBoxLayout()
+        btns.addStretch()
+        btns.addWidget(self.hint)
         btns.addWidget(self.back)
+
+        error = QVBoxLayout()
+        error.addStretch()
+        error.addWidget(self.error_label)
 
         btns.setAlignment(Qt.AlignRight)
 
-        right.addLayout(btns)
+        bttm = QHBoxLayout()
+        #bttm.addSpacing(20)
+        bttm.addLayout(error)
+        bttm.setAlignment(Qt.AlignBottom)
+        bttm.addStretch()
+        bttm.addLayout(btns)
+
+        right.addLayout(bttm)
 
         all_layout.addWidget(left_widget, 1)
         all_layout.addWidget(right_widget, 2)
@@ -1032,7 +998,7 @@ class SolverPage(QWidget):
 
             # Правило: OC должно быть меньше AB
             if side_oc >= side_ab:
-                return False, "OC ≥ AB: сторона OC должна быть меньше стороны AB"
+                return False, "СТОРОНА OC ДОЛЖНА БЫТЬ МЕНЬШЕ СТОРОНЫ AB"
 
             return True, ""
         except Exception as e:
