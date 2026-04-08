@@ -401,6 +401,7 @@ class HintDialog(QDialog):
         self.drag_pos = None
 
 # ---------------- КАСТОМНОЕ БЕЛОЕ ОКНО ОШИБКИ ----------------
+
 class WhiteErrorDialog(QDialog):
     def __init__(self, parent, title, message):
         super().__init__(parent)
@@ -456,10 +457,10 @@ class WhiteErrorDialog(QDialog):
 class Slider(QWidget):
     def __init__(self,
                  unit_label = '',
-                 label = ''):
+                 label = '',
+                 min_value = 0):
         super().__init__()
 
-        self.min_value = 0
         self.max_value = 100
         scale = get_scale(self.screen().size()) 
 
@@ -476,8 +477,8 @@ class Slider(QWidget):
 
         # === Слайдер ===
         self.slider = QSlider(Qt.Horizontal)
-        self.slider.setRange(self.min_value, self.max_value)
-        self.slider.setValue(0) 
+        self.slider.setRange(min_value, self.max_value)
+        self.slider.setValue(min_value) 
         self.slider.setMinimumHeight(40*scale)
         self.slider.setFixedWidth(350*scale)
 
@@ -636,10 +637,17 @@ class input_panel(CastomPanel):
         layout.setContentsMargins(10,10,10,10)
 
         self.sliders = {}
-        label_dict = {"P_пл": "Н", "AB": "см", "OA": "см", "OC": "см", "P": "Н", }
+        label_dict1 = {"P_пл": "Н", "P": "Н"}
+        label_dict2 = {"AB": "см", "OA": "см", "OC": "см"}
 
-        for key in label_dict:
-            slider = Slider(label_dict[key], key)  # создаём
+        for key in label_dict1:
+            slider = Slider(label_dict1[key], key, min_value=0)  # создаём
+            self.sliders[key] = slider             # сохраняем
+            layout.addWidget(slider)
+            layout.setSpacing(-20)
+
+        for key in label_dict2:
+            slider = Slider(label_dict2[key], key, min_value=1)  # создаём
             self.sliders[key] = slider             # сохраняем
             layout.addWidget(slider)
             layout.setSpacing(-20)
@@ -662,7 +670,7 @@ class input_panel(CastomPanel):
         self.reset_btn.clicked.connect(self.reset_all_sliders)
 
         self.random_btn = QPushButton("СЛУЧАЙНЫЕ ЗН-Я")
-        self.random_btn.clicked.connect(lambda: self.set_value("P_пл", 1)) # написать ф-ю рандомизации зн-й, запихнуть сюда
+        self.random_btn.clicked.connect(self.random_all_sliders)
         self.random_btn.setObjectName("mainButton")
         generate_adaptive_qss(
             self.random_btn,
@@ -697,10 +705,19 @@ class input_panel(CastomPanel):
             slider_obj = self.sliders[key]
             slider_obj.slider.setValue(int(value))
             slider_obj.input.setText(str(value))
+            #self.sliders[key].slider.setValue(value)
 
     def reset_all_sliders(self):
         for key, value in self.default_values.items():
             self.set_value(key, value)
+
+    def random_all_sliders(self):
+        for key in self.sliders:
+            self.set_value(key, randint(1, 100))
+
+        if self.get_value('OC') > self.get_value('AB'):
+            new_value = self.get_value('AB') - 5
+            self.set_value('OC', max(1, new_value))
 
 # ---------------- ПОЛЕ ВВОДА ----------------
 class answer_panel(QWidget):
@@ -805,7 +822,7 @@ class result_panel(CastomPanel):
             base_border_radius=14, base_border_width=3, border_color="#111111", enlarge_on_hover=True
         )
         
-        self.check_btn = QPushButton("РЕШИТЬ ЗАДАЧУ")
+        self.check_btn = QPushButton("ПРОВЕРИТЬ ОТВЕТ")
         self.check_btn.clicked.connect(self.calculate_physics)  
         self.check_btn.setObjectName("mainButton")
         generate_adaptive_qss(
@@ -837,14 +854,6 @@ class result_panel(CastomPanel):
             side_oa = float(self.input_panel.get_value("OA"))  
             side_ab = float(self.input_panel.get_value("AB"))  
             side_oc = float(self.input_panel.get_value("OC"))  
-
-            if weight < 0 or force_p < 0 or side_oa < 0 or side_ab < 0 or side_oc < 0:
-                show_error_message(self, "Ошибка ввода", "Значения не могут быть отрицательными!")
-                return
-
-            if side_oa == 0 or side_ab == 0 or side_oc == 0:
-                show_error_message(self, "Ошибка геометрии", "Длины сторон не могут быть равны нулю или отрицательными!")
-                return
 
             if side_oc >= side_ab:
                 show_error_message(self, "Геометрическое ограничение", "Сторона OC должна быть меньше стороны AB!")
