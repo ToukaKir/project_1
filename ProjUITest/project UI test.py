@@ -400,8 +400,8 @@ class HintDialog(QDialog):
     def mouseReleaseEvent(self, event):
         self.drag_pos = None
 
-# ---------------- КАСТОМНОЕ БЕЛОЕ ОКНО ОШИБКИ ----------------
-
+# ---------------- КАСТОМНОЕ БЕЛОЕ ОКНО ОШИБКИ (ИДЕТ НАХУЙ) ----------------
+'''
 class WhiteErrorDialog(QDialog):
     def __init__(self, parent, title, message):
         super().__init__(parent)
@@ -453,6 +453,8 @@ class WhiteErrorDialog(QDialog):
         btn.clicked.connect(self.accept) # Закрывает окно
         
         layout.addWidget(btn)
+'''
+
 # ---------------- СЛАЙДЕР СТРОКА ----------------
 class Slider(QWidget):
     def __init__(self,
@@ -855,10 +857,6 @@ class result_panel(CastomPanel):
             side_ab = float(self.input_panel.get_value("AB"))  
             side_oc = float(self.input_panel.get_value("OC"))  
 
-            if side_oc >= side_ab:
-                show_error_message(self, "Геометрическое ограничение", "Сторона OC должна быть меньше стороны AB!")
-                return
-
             hypotenuse_ob = (side_oa**2 + side_ab**2) ** 0.5
             res_x0 = -force_p * (side_ab / hypotenuse_ob)
             res_yc = (2 * side_oa * weight + 3 * (hypotenuse_ob / 2) * force_p) / (3 * side_oc)
@@ -887,6 +885,24 @@ class SolverPage(QWidget):
     def __init__(self, app):
         super().__init__()
         self.app = app
+
+        # Виджет для сообщения об ошибке
+        self.error_label = QLabel("Некорректные значения параметров!")
+        self.error_label.setObjectName("errorLabel")
+        self.error_label.setVisible(False)  # Изначально скрыт
+
+        # Стиль для сообщения об ошибке
+        error_style = """
+        QLabel#errorLabel {
+            color: #ff3333;
+            font-size: 14px;
+            font-weight: bold;
+            background-color: rgba(255, 255, 255, 180);
+            border-radius: 8px;
+            padding: 5px 10px;
+        }
+        """
+        self.error_label.setStyleSheet(error_style)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -921,6 +937,13 @@ class SolverPage(QWidget):
         self.input_panel.set_value("OA", 24)
         self.input_panel.set_value("P_пл", 5)
         self.input_panel.set_value("P", 10.4)
+
+        # Подключаем отслеживание изменений в слайдерах для проверки валидности
+        for slider_key in self.input_panel.sliders:
+            slider = self.input_panel.sliders[slider_key]
+            slider.slider.valueChanged.connect(self.update_error_status)
+            slider.input.editingFinished.connect(self.update_error_status)
+
 
         left_layout.addWidget(self.input_panel)
         left_layout.addWidget(self.result_panel)
@@ -964,7 +987,13 @@ class SolverPage(QWidget):
             enlarge_on_hover=True
         )
 
-        btns.addWidget(self.hint)
+        # Контейнер для кнопки подсказки и сообщения об ошибке
+        hint_container = QHBoxLayout()
+        hint_container.addWidget(self.hint)
+        hint_container.addWidget(self.error_label)
+        hint_container.addStretch()
+
+        btns.addLayout(hint_container)
         btns.addWidget(self.back)
 
         btns.setAlignment(Qt.AlignRight)
@@ -994,6 +1023,30 @@ class SolverPage(QWidget):
     def resizeEvent(self, event):
         self.all_overlay.setGeometry(0,0,self.width(),self.height())
         super().resizeEvent(event)
+
+    def validate_inputs(self):
+        """Проверяет корректность введённых значений"""
+        try:
+            side_oc = float(self.input_panel.get_value("OC"))
+            side_ab = float(self.input_panel.get_value("AB"))
+
+            # Правило: OC должно быть меньше AB
+            if side_oc >= side_ab:
+                return False, "OC ≥ AB: сторона OC должна быть меньше стороны AB"
+
+            return True, ""
+        except Exception as e:
+            return False, f"Ошибка ввода: {str(e)}"
+        
+    def update_error_status(self):
+        """Обновляет статус ошибки — показывает/скрывает сообщение"""
+        is_valid, error_message = self.validate_inputs()
+
+        if is_valid:
+            self.error_label.setVisible(False)
+        else:
+            self.error_label.setText(error_message)
+            self.error_label.setVisible(True)
 
 # ---------------- APP ----------------
 class App(QMainWindow):
